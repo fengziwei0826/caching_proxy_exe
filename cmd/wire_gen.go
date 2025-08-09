@@ -8,6 +8,7 @@ package main
 
 import (
 	"context"
+	"github.com/fengziwei0826/caching_proxy_exe/internal/cachemanager"
 	"github.com/fengziwei0826/caching_proxy_exe/internal/conf"
 	"github.com/fengziwei0826/caching_proxy_exe/internal/server"
 	"github.com/fengziwei0826/caching_proxy_exe/pkg/db"
@@ -18,8 +19,17 @@ import (
 func InitCacheProxyServer() *server.CacheProxyServer {
 	contextContext := context.Background()
 	globalConfig := conf.GetGlobalConfig()
-	requestCacheProxy := db.NewRequestCacheProxy(contextContext, globalConfig)
-	httpProxyServer := server.NewHttpProxyServer(contextContext, requestCacheProxy, globalConfig)
+	cacheProxy := db.NewCacheProxy(contextContext, globalConfig)
+	cacheManager := cachemanager.NewCacheManager(contextContext, cacheProxy)
+	httpProxyServer := server.NewHttpProxyServer(contextContext, cacheManager, globalConfig)
 	cacheProxyServer := server.NewCacheProxyServer(contextContext, httpProxyServer, globalConfig)
 	return cacheProxyServer
+}
+
+func InitCacheManager() cachemanager.CacheManager {
+	contextContext := context.Background()
+	globalConfig := conf.GetGlobalConfig()
+	cacheProxy := db.NewCacheProxy(contextContext, globalConfig)
+	cacheManager := cachemanager.NewCacheManager(contextContext, cacheProxy)
+	return cacheManager
 }

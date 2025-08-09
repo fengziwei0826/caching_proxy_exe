@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/fengziwei0826/caching_proxy_exe/internal/cachemanager"
 	"github.com/fengziwei0826/caching_proxy_exe/internal/conf"
-	"github.com/fengziwei0826/caching_proxy_exe/pkg/db"
 )
 
 const (
@@ -19,9 +19,9 @@ const (
 )
 
 type httpProxyServer struct {
-	ctx   context.Context
-	srv   http.Server
-	cache db.RequestCacheProxy
+	ctx context.Context
+	srv http.Server
+	mgr cachemanager.CacheManager
 }
 
 func (p *httpProxyServer) Start() error {
@@ -39,13 +39,14 @@ func (p *httpProxyServer) Stop() error {
 	if err := p.srv.Shutdown(ctx); err != nil {
 		log.Printf("HTTP server shutdown failed: %v \n", err)
 	}
+	p.mgr.Close()
 	return nil
 }
 
 func (p *httpProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Received request: %s %s \n", r.Method, r.URL.Path)
 	path := r.URL.Path
-	res, err := p.cache.Get(path)
+	res, err := p.mgr.GetResponse(path)
 	if err == nil && res != "" {
 		log.Printf("Cache hit for path: %s [%s]\n", path, res)
 		w.WriteHeader(http.StatusOK)
@@ -75,7 +76,7 @@ func (p *httpProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	if err := p.cache.Set(path, string(respBytes)); err != nil {
+	if err := p.mgr.CacheResponse(path, string(respBytes)); err != nil {
 		log.Printf("Failed to cache response: %v \n", err)
 	}
 	w.WriteHeader(http.StatusOK)
@@ -83,10 +84,10 @@ func (p *httpProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(respBytes)
 }
 
-func NewHttpProxyServer(ctx context.Context, cache db.RequestCacheProxy, config *conf.GlobalConfig) HttpProxyServer {
+func NewHttpProxyServer(ctx context.Context, cache cachemanager.CacheManager, config *conf.GlobalConfig) HttpProxyServer {
 	proxy := &httpProxyServer{
-		ctx:   ctx,
-		cache: cache,
+		ctx: ctx,
+		mgr: cache,
 	}
 	proxy.srv = http.Server{
 		Addr:    "localhost:" + strconv.Itoa(config.HTTPConfig.Port),

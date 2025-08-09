@@ -13,12 +13,14 @@ var (
 	Port       int    = 3000
 	ProxyAddr  string = "http://dummyjson.com"
 	ConfigPath string = ""
+	ClearCache bool   = false
 )
 
 func init() {
 	flag.IntVar(&Port, "port", 3000, "HTTP server port")
 	flag.StringVar(&ProxyAddr, "origin", "http://dummyjson.com", "Proxy origin address")
 	flag.StringVar(&ConfigPath, "config", "", "Path to configuration file")
+	flag.BoolVar(&ClearCache, "clear-cache", false, "Clear cache, then return")
 	flag.Parse()
 }
 
@@ -34,6 +36,13 @@ func main() {
 		log.Printf("Using configuration file: %s\n", ConfigPath)
 	}
 	log.Printf("Global configuration: %v\n", conf.GetGlobalConfig())
+	if ClearCache {
+		log.Printf("Clearing cache and exiting...")
+		mgr := InitCacheManager()
+		defer mgr.Close()
+		mgr.ClearAllCache()
+		return
+	}
 	srv := InitCacheProxyServer()
 	err := srv.Start()
 	if err != nil {
